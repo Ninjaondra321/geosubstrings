@@ -54,6 +54,37 @@
             border-color: #007acc;
         }
 
+        /* Bottom-left dataset selector */
+        #dataset-container {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+        }
+
+        #dataset-select {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: #222;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        #dataset-select:focus {
+            border-color: #007acc;
+        }
+
         /* Top-right info button */
         #info-btn {
             position: absolute;
@@ -140,18 +171,23 @@
         <span id="match-count" style="font-size: 13px; color: #aaa;"></span>
     </div>
 
+    <!-- Dataset Selector (Bottom Left) -->
+    <div id="dataset-container">
+        <label for="dataset-select">Dataset:</label>
+        <select id="dataset-select">
+            <option value="">-- Vyberte dataset --</option>
+        </select>
+    </div>
+
     <!-- Info Button (Top Right) -->
     <button id="info-btn" aria-label="Informace">?</button>
 
     <!-- Info Modal Dialog -->
-    <div id="info-modal">
+    <div id="info-modal" style="display: none;">
         <div class="modal-content">
             <h2>GeoSubstrings</h2>
-            <p>TODO: Selector of dataset</p>
-            <p>TODO:? Bar width selector</p>
-            <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
             <button class="close-btn" id="close-modal">&times;</button>
-            <h3>O aplikaci</h3>
+
             <p>Tato 3D vizualizace zobrazuje četnost výskytu zadatelných podřetězců v názvech měst na mapě pomocí
                 Deck.GL sloupce.</p>
             <p><strong>Autor:</strong> <a href="https://notime.cz/">NoTime</a></p>
@@ -162,30 +198,50 @@
     <div id="container"></div>
 
     <script>
-        async function loadCities() {
+        // Fetch list of datasets for dropdown menu
+        async function fetchDatasetList() {
             try {
-                const response = await fetch('datasets/HR_cities.json');
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-                const cities = await response.json();
-                console.log(cities);
-                return cities;
+                const response = await fetch('datasets.json');
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                return await response.json();
             } catch (error) {
-                console.error('Error loading cities.json:', error);
+                console.error('Error loading datasets.json:', error);
+                return [];
+            }
+        }
+
+        // Fetch a specific dataset by path
+        async function loadCities(path) {
+            if (!path) return [];
+            try {
+                const response = await fetch(path);
+                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error(`Error loading dataset (${path}):`, error);
+                return [];
             }
         }
 
         async function main() {
-            let rawCities = await loadCities();
-            if (!rawCities) return;
-
-            const totalCitiesCount = rawCities.length;
+            let rawCities = [];
+            const datasetSelect = document.getElementById('dataset-select');
+            const searchInput = document.getElementById('search-input');
             const countDisplay = document.getElementById('match-count');
+
+            // Populate dataset dropdown options
+            const datasets = await fetchDatasetList();
+            datasets.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.path;
+                option.textContent = `${item.path.replace('datasets/', '')} (${item.items} položek)`;
+                datasetSelect.appendChild(option);
+            });
 
             // Function to build layer with calculated occurrences
             function createLayer(substring) {
                 let matchedCitiesCount = 0;
+                const totalCitiesCount = rawCities.length;
 
                 const data = rawCities.map(a => {
                     const count = substring ? (a[0].toLowerCase().split(substring.toLowerCase()).length - 1) : 0;
@@ -200,7 +256,7 @@
 
                 // Update UI counter badge showing total count
                 if (countDisplay) {
-                    countDisplay.textContent = substring
+                    countDisplay.textContent = substring && totalCitiesCount > 0
                         ? `Matched ${matchedCitiesCount}/${totalCitiesCount}`
                         : `Matched 0/${totalCitiesCount}`;
                 }
@@ -211,7 +267,7 @@
                     getPosition: d => d.coordinates,
                     getElevation: d => d.population,
                     elevationScale: 10000,
-                    radius: 1000,
+                    radius: 2000,
                     getFillColor: d => [
                         Math.min(255, d.population * 200),
                         100,
@@ -228,8 +284,6 @@
                 });
             }
 
-            const searchInput = document.getElementById('search-input');
-
             // Initialize DeckGL map
             const deckgl = new deck.DeckGL({
                 container: 'container',
@@ -243,20 +297,30 @@
                 },
                 controller: true,
                 layers: [createLayer(searchInput.value)],
-                getTooltip: ({ object }) => object && `${object.name}\nVýskyty: ${object.population}`
+                getTooltip: ({ object }) => object && object.population > 0 ? `${object.name}\nVýskyty: ${object.population}` : null
             });
 
-            // Debounce timer variable
+            // Update layer helper
+            function updateMap() {
+                deckgl.setProps({
+                    layers: [createLayer(searchInput.value)]
+                });
+            }
+
+            // Dataset select event listener
+            datasetSelect.addEventListener('change', async (e) => {
+                const selectedPath = e.target.value;
+                rawCities = await loadCities(selectedPath);
+                updateMap();
+            });
+
+            // Debounce timer variable for search
             let debounceTimer;
 
-            searchInput.addEventListener('input', (e) => {
+            searchInput.addEventListener('input', () => {
                 clearTimeout(debounceTimer);
-
                 debounceTimer = setTimeout(() => {
-                    const query = e.target.value;
-                    deckgl.setProps({
-                        layers: [createLayer(query)]
-                    });
+                    updateMap();
                 }, 100);
             });
 
