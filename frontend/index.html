@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="cs">
+
+<head>
+    <meta charset="UTF-8">
+    <title>3D Mapa populace Evropy</title>
+
+    <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
+
+
+
+
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+
+        #container {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Top-left search bar */
+        #search-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+        }
+
+        #search-input {
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: #222;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+        }
+
+        #search-input:focus {
+            border-color: #007acc;
+        }
+
+        /* Top-right info button */
+        #info-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: background 0.2s;
+        }
+
+        #info-btn:hover {
+            background: rgba(40, 40, 40, 0.9);
+        }
+
+        /* Modal Dialog */
+        #info-modal {
+            /*  display: none;  */
+            display: flex;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: #1e1e1e;
+            color: #fff;
+            padding: 24px;
+            border-radius: 10px;
+            width: 340px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+
+        .modal-content h3 {
+            margin-top: 0;
+            color: #007acc;
+        }
+
+        .modal-content p {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #ccc;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .close-btn:hover {
+            color: #fff;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Search Bar (Top Left) -->
+    <div id="search-container">
+        <label for="search-input">Hledaný podřetězec:</label>
+        <input type="text" id="search-input" value="ovice" placeholder="Napište podřetězec...">
+    </div>
+
+    <!-- Info Button (Top Right) -->
+    <button id="info-btn" aria-label="Informace">?</button>
+
+    <!-- Info Modal Dialog -->
+    <div id="info-modal">
+        <div class="modal-content">
+            <button class="close-btn" id="close-modal">&times;</button>
+            <h3>O aplikaci</h3>
+            <p>Tato 3D vizualizace zobrazuje četnost výskytu zadatelných podřetězců v názvech měst na mapě pomocí
+                Deck.GL sloupce.</p>
+            <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
+            <h3>About</h3>
+            <p><strong>Autor:</strong> <a href="https://notime.cz/">NoTime</a></p>
+            <p><strong>Source code:</strong> <a href="https://notime.cz/">TODO</a></p>
+        </div>
+    </div>
+
+    <div id="container"></div>
+
+    <script>
+        async function loadCities() {
+            try {
+                const response = await fetch('cities.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                const cities = await response.json();
+                console.log(cities);
+                return cities;
+            } catch (error) {
+                console.error('Error loading cities.json:', error);
+            }
+        }
+
+        async function main() {
+            let rawCities = await loadCities();
+            if (!rawCities) return;
+
+            // Function to build layer with calculated occurrences
+            function createLayer(substring) {
+                const data = rawCities.map(a => {
+                    const count = substring ? (a[0].toLowerCase().split(substring.toLowerCase()).length - 1) : 0;
+                    return {
+                        name: a[0],
+                        coordinates: [a[2], a[1]],
+                        population: count
+                    };
+                });
+
+                return new deck.ColumnLayer({
+                    id: 'population-columns',
+                    data: data,
+                    getPosition: d => d.coordinates,
+                    getElevation: d => d.population,
+                    elevationScale: 10000,
+                    radius: 5000,
+                    getFillColor: d => [
+                        Math.min(255, d.population * 200),
+                        100,
+                        Math.max(50, 255 - d.population / 10000),
+                        200
+                    ],
+                    pickable: true,
+                    extruded: true,
+                    material: {
+                        ambient: 0.35,
+                        diffuse: 0.6,
+                        shininess: 32
+                    }
+                });
+            }
+
+            const searchInput = document.getElementById('search-input');
+
+            // Initialize DeckGL map
+            const deckgl = new deck.DeckGL({
+                container: 'container',
+                mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+                initialViewState: {
+                    longitude: 15.4378,
+                    latitude: 49.8,
+                    zoom: 5,
+                    pitch: 50,
+                    bearing: 0
+                },
+                controller: true,
+                layers: [createLayer(searchInput.value)],
+                getTooltip: ({ object }) => object && `${object.name}\nVýskyty: ${object.population}`
+            });
+
+            // Debounce timer variable (2 seconds)
+            let debounceTimer;
+
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(debounceTimer);
+
+                debounceTimer = setTimeout(() => {
+                    const query = e.target.value;
+                    deckgl.setProps({
+                        layers: [createLayer(query)]
+                    });
+                }, 100);
+            });
+
+            // Modal Controls
+            const infoBtn = document.getElementById('info-btn');
+            const infoModal = document.getElementById('info-modal');
+            const closeModal = document.getElementById('close-modal');
+
+            infoBtn.addEventListener('click', () => {
+                infoModal.style.display = 'flex';
+            });
+
+            closeModal.addEventListener('click', () => {
+                infoModal.style.display = 'none';
+            });
+
+            window.addEventListener('click', (e) => {
+                if (e.target === infoModal) {
+                    infoModal.style.display = 'none';
+                }
+            });
+        }
+
+        main();
+    </script>
+</body>
+
+</html>
