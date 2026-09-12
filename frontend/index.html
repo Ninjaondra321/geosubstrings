@@ -316,7 +316,7 @@
                 },
                 controller: true,
                 layers: [createLayer(searchInput.value)],
-                getTooltip: ({ object }) => object && object.population > 0 ? `${object.name}\nVýskyty: ${object.population}` : null
+                getTooltip: ({ object }) => object ? `${object.name}\nVýskyty: ${object.population}` : null
             });
 
             function updateMap() {
