@@ -9,8 +9,6 @@
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.css" rel="stylesheet" />
 
-
-
     <style>
         body {
             margin: 0;
@@ -84,7 +82,6 @@
 
         /* Modal Dialog */
         #info-modal {
-            /*  display: none;  */
             display: flex;
             position: absolute;
             top: 0;
@@ -140,7 +137,7 @@
     <div id="search-container">
         <label for="search-input">Hledaný podřetězec:</label>
         <input type="text" id="search-input" value="ovice" placeholder="Napište podřetězec...">
-        <sub>TODO: Count how many spots matched</sub>
+        <span id="match-count" style="font-size: 13px; color: #aaa;"></span>
     </div>
 
     <!-- Info Button (Top Right) -->
@@ -183,16 +180,30 @@
             let rawCities = await loadCities();
             if (!rawCities) return;
 
+            const totalCitiesCount = rawCities.length;
+            const countDisplay = document.getElementById('match-count');
+
             // Function to build layer with calculated occurrences
             function createLayer(substring) {
+                let matchedCitiesCount = 0;
+
                 const data = rawCities.map(a => {
                     const count = substring ? (a[0].toLowerCase().split(substring.toLowerCase()).length - 1) : 0;
+                    if (count > 0) matchedCitiesCount++;
+
                     return {
                         name: a[0],
                         coordinates: [a[2], a[1]],
                         population: count
                     };
                 });
+
+                // Update UI counter badge showing total count
+                if (countDisplay) {
+                    countDisplay.textContent = substring
+                        ? `Matched ${matchedCitiesCount}/${totalCitiesCount}`
+                        : `Matched 0/${totalCitiesCount}`;
+                }
 
                 return new deck.ColumnLayer({
                     id: 'population-columns',
@@ -235,7 +246,7 @@
                 getTooltip: ({ object }) => object && `${object.name}\nVýskyty: ${object.population}`
             });
 
-            // Debounce timer variable (2 seconds)
+            // Debounce timer variable
             let debounceTimer;
 
             searchInput.addEventListener('input', (e) => {
