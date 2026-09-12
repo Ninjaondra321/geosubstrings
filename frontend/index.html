@@ -198,7 +198,6 @@
     <div id="container"></div>
 
     <script>
-        // Fetch list of datasets for dropdown menu
         async function fetchDatasetList() {
             try {
                 const response = await fetch('datasets.json');
@@ -210,7 +209,6 @@
             }
         }
 
-        // Fetch a specific dataset by path
         async function loadCities(path) {
             if (!path) return [];
             try {
@@ -229,6 +227,30 @@
             const searchInput = document.getElementById('search-input');
             const countDisplay = document.getElementById('match-count');
 
+            // Set initial focus
+            searchInput.focus();
+
+            // Refocus searchInput when focus leaves, UNLESS user clicked an interactive control
+            searchInput.addEventListener('blur', () => {
+                setTimeout(() => {
+                    const active = document.activeElement;
+                    const isInteractive = active.tagName === 'SELECT' ||
+                        active.tagName === 'INPUT' ||
+                        active.tagName === 'BUTTON' ||
+                        active.tagName === 'A';
+
+                    if (!isInteractive) {
+                        searchInput.focus();
+                    }
+                }, 0);
+            });
+
+            // Dragging or clicking the map specifically keeps focus on the input
+            document.getElementById('container').addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                searchInput.focus();
+            });
+
             // Populate dataset dropdown options
             const datasets = await fetchDatasetList();
             datasets.forEach(item => {
@@ -238,7 +260,6 @@
                 datasetSelect.appendChild(option);
             });
 
-            // Function to build layer with calculated occurrences
             function createLayer(substring) {
                 let matchedCitiesCount = 0;
                 const totalCitiesCount = rawCities.length;
@@ -254,7 +275,6 @@
                     };
                 });
 
-                // Update UI counter badge showing total count
                 if (countDisplay) {
                     countDisplay.textContent = substring && totalCitiesCount > 0
                         ? `Matched ${matchedCitiesCount}/${totalCitiesCount}`
@@ -284,7 +304,6 @@
                 });
             }
 
-            // Initialize DeckGL map
             const deckgl = new deck.DeckGL({
                 container: 'container',
                 mapStyle: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
@@ -300,21 +319,18 @@
                 getTooltip: ({ object }) => object && object.population > 0 ? `${object.name}\nVýskyty: ${object.population}` : null
             });
 
-            // Update layer helper
             function updateMap() {
                 deckgl.setProps({
                     layers: [createLayer(searchInput.value)]
                 });
             }
 
-            // Dataset select event listener
             datasetSelect.addEventListener('change', async (e) => {
                 const selectedPath = e.target.value;
                 rawCities = await loadCities(selectedPath);
                 updateMap();
             });
 
-            // Debounce timer variable for search
             let debounceTimer;
 
             searchInput.addEventListener('input', () => {
@@ -324,7 +340,6 @@
                 }, 100);
             });
 
-            // Modal Controls
             const infoBtn = document.getElementById('info-btn');
             const infoModal = document.getElementById('info-modal');
             const closeModal = document.getElementById('close-modal');
