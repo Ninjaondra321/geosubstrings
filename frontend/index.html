@@ -11,8 +11,6 @@
 
 
 
-
-
     <style>
         body {
             margin: 0;
@@ -142,6 +140,7 @@
     <div id="search-container">
         <label for="search-input">Hledaný podřetězec:</label>
         <input type="text" id="search-input" value="ovice" placeholder="Napište podřetězec...">
+        <sub>TODO: Count how many spots matched</sub>
     </div>
 
     <!-- Info Button (Top Right) -->
@@ -150,14 +149,16 @@
     <!-- Info Modal Dialog -->
     <div id="info-modal">
         <div class="modal-content">
+            <h2>GeoSubstrings</h2>
+            <p>TODO: Selector of dataset</p>
+            <p>TODO:? Bar width selector</p>
+            <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
             <button class="close-btn" id="close-modal">&times;</button>
             <h3>O aplikaci</h3>
             <p>Tato 3D vizualizace zobrazuje četnost výskytu zadatelných podřetězců v názvech měst na mapě pomocí
                 Deck.GL sloupce.</p>
-            <hr style="border: 0; border-top: 1px solid #444; margin: 15px 0;">
-            <h3>About</h3>
             <p><strong>Autor:</strong> <a href="https://notime.cz/">NoTime</a></p>
-            <p><strong>Source code:</strong> <a href="https://notime.cz/">TODO</a></p>
+            <p><strong>Source code:</strong> <a href="https://github.com/Ninjaondra321/geosubstrings">GitHub</a></p>
         </div>
     </div>
 
@@ -166,7 +167,7 @@
     <script>
         async function loadCities() {
             try {
-                const response = await fetch('datasets/cities.json');
+                const response = await fetch('datasets/HR_cities.json');
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
@@ -199,7 +200,7 @@
                     getPosition: d => d.coordinates,
                     getElevation: d => d.population,
                     elevationScale: 10000,
-                    radius: 5000,
+                    radius: 1000,
                     getFillColor: d => [
                         Math.min(255, d.population * 200),
                         100,
