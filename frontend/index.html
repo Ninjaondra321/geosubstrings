@@ -166,7 +166,7 @@
     <script>
         async function loadCities() {
             try {
-                const response = await fetch('cities.json');
+                const response = await fetch('datasets/cities.json');
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status}`);
                 }
