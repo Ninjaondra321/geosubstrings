@@ -40,8 +40,16 @@
             color: #fff;
         }
 
+        /* Search input wrapper for VS Code style regex toggle */
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
         #search-input {
-            padding: 8px 12px;
+            padding: 8px 36px 8px 12px;
+            /* Extra right padding for regex button */
             border-radius: 4px;
             border: 1px solid #555;
             background: #222;
@@ -51,6 +59,34 @@
         }
 
         #search-input:focus {
+            border-color: #007acc;
+        }
+
+        /* VS Code Style Regex Toggle Button */
+        #regex-btn {
+            position: absolute;
+            right: 4px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 3px;
+            color: #888;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 12px;
+            padding: 2px 5px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.15s ease;
+        }
+
+        #regex-btn:hover {
+            color: #ccc;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        #regex-btn.active {
+            color: #fff;
+            background: #007acc;
             border-color: #007acc;
         }
 
@@ -167,7 +203,10 @@
     <!-- Search Bar (Top Left) -->
     <div id="search-container">
         <label for="search-input">Hledaný podřetězec:</label>
-        <input type="text" id="search-input" value="ovice" placeholder="Napište podřetězec...">
+        <div class="input-wrapper">
+            <input type="text" id="search-input" value="ovice" placeholder="Napište podřetězec...">
+            <button id="regex-btn" title="Použít regulární výraz (Alt+R)">.*</button>
+        </div>
         <span id="match-count" style="font-size: 13px; color: #aaa;"></span>
     </div>
 
@@ -225,7 +264,10 @@
             let rawCities = [];
             const datasetSelect = document.getElementById('dataset-select');
             const searchInput = document.getElementById('search-input');
+            const regexBtn = document.getElementById('regex-btn');
             const countDisplay = document.getElementById('match-count');
+
+            let isRegexEnabled = false;
 
             // Set initial focus
             searchInput.focus();
@@ -255,9 +297,15 @@
             const urlParams = new URLSearchParams(window.location.search);
             const initialQuery = urlParams.get('q');
             const initialDataset = urlParams.get('dataset');
+            const initialRegex = urlParams.get('regex');
 
             if (initialQuery !== null) {
                 searchInput.value = initialQuery;
+            }
+
+            if (initialRegex === 'true') {
+                isRegexEnabled = true;
+                regexBtn.classList.add('active');
             }
 
             // Function to synchronize current input & select state back to URL parameters
@@ -276,40 +324,77 @@
                     params.delete('dataset');
                 }
 
+                if (isRegexEnabled) {
+                    params.set('regex', 'true');
+                } else {
+                    params.delete('regex');
+                }
+
                 const newRelativePathQuery = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
                 history.replaceState(null, '', newRelativePathQuery);
             }
 
-            // Populate dataset dropdown options
+            // Populate dataset dropdown options (storing clean filename without 'datasets/' prefix)
             const datasets = await fetchDatasetList();
             datasets.forEach(item => {
                 const option = document.createElement('option');
-                option.value = item.path;
-                option.textContent = `${item.path.replace('datasets/', '')} (${item.items} položek)`;
+                const cleanName = item.path.replace('datasets/', '');
+                option.value = cleanName;
+                option.textContent = `${cleanName} (${item.items} položek)`;
                 datasetSelect.appendChild(option);
             });
 
-            // Select dataset from URL param if available, or default to first dataset if none specified
-            if (initialDataset && datasets.some(d => d.path === initialDataset)) {
-                datasetSelect.value = initialDataset;
+            // Select dataset from URL param if available, or default to first dataset
+            if (initialDataset) {
+                const cleanInitial = initialDataset.replace('datasets/', '');
+                if (datasets.some(d => d.path.replace('datasets/', '') === cleanInitial)) {
+                    datasetSelect.value = cleanInitial;
+                }
             } else if (datasets.length > 0) {
-                datasetSelect.value = datasets[0].path;
+                datasetSelect.value = datasets[0].path.replace('datasets/', '');
             }
 
             // Load initial dataset cities
             if (datasetSelect.value) {
-                rawCities = await loadCities(datasetSelect.value);
+                rawCities = await loadCities(`datasets/${datasetSelect.value}`);
             }
 
             // Sync URL parameters on initial load
             updateURLParams();
 
-            function createLayer(substring) {
+            function getMatchCount(text, pattern, isRegex) {
+                if (!pattern) return 0;
+
+                if (isRegex) {
+                    try {
+                        const regex = new RegExp(pattern, 'gi');
+                        const matches = text.match(regex);
+                        return matches ? matches.length : 0;
+                    } catch (e) {
+                        // Invalid Regex expression being typed
+                        return 0;
+                    }
+                } else {
+                    return text.toLowerCase().split(pattern.toLowerCase()).length - 1;
+                }
+            }
+
+            function createLayer(query, isRegex) {
                 let matchedCitiesCount = 0;
                 const totalCitiesCount = rawCities.length;
 
+                // Validate regex if regex mode is active
+                let isInvalidRegex = false;
+                if (isRegex && query) {
+                    try {
+                        new RegExp(query, 'gi');
+                    } catch (e) {
+                        isInvalidRegex = true;
+                    }
+                }
+
                 const data = rawCities.map(a => {
-                    const count = substring ? (a[0].toLowerCase().split(substring.toLowerCase()).length - 1) : 0;
+                    const count = getMatchCount(a[0], query, isRegex);
                     if (count > 0) matchedCitiesCount++;
 
                     return {
@@ -320,9 +405,15 @@
                 });
 
                 if (countDisplay) {
-                    countDisplay.textContent = substring && totalCitiesCount > 0
-                        ? `Matched ${matchedCitiesCount}/${totalCitiesCount}`
-                        : `Matched 0/${totalCitiesCount}`;
+                    if (isInvalidRegex) {
+                        countDisplay.textContent = 'Neplatný Regex';
+                        countDisplay.style.color = '#ff6b6b';
+                    } else {
+                        countDisplay.style.color = '#aaa';
+                        countDisplay.textContent = query && totalCitiesCount > 0
+                            ? `Matched ${matchedCitiesCount}/${totalCitiesCount}`
+                            : `Matched 0/${totalCitiesCount}`;
+                    }
                 }
 
                 return new deck.ColumnLayer({
@@ -359,19 +450,37 @@
                     bearing: 0
                 },
                 controller: true,
-                layers: [createLayer(searchInput.value)],
+                layers: [createLayer(searchInput.value, isRegexEnabled)],
                 getTooltip: ({ object }) => object ? `${object.name}\nVýskyty: ${object.population}` : null
             });
 
             function updateMap() {
                 deckgl.setProps({
-                    layers: [createLayer(searchInput.value)]
+                    layers: [createLayer(searchInput.value, isRegexEnabled)]
                 });
             }
 
+            // Regex toggle handler
+            function toggleRegex() {
+                isRegexEnabled = !isRegexEnabled;
+                regexBtn.classList.toggle('active', isRegexEnabled);
+                updateURLParams();
+                updateMap();
+            }
+
+            regexBtn.addEventListener('click', toggleRegex);
+
+            // Alt+R shortcut (VS Code default for regex toggle)
+            document.addEventListener('keydown', (e) => {
+                if (e.altKey && (e.key === 'r' || e.key === 'R')) {
+                    e.preventDefault();
+                    toggleRegex();
+                }
+            });
+
             datasetSelect.addEventListener('change', async (e) => {
-                const selectedPath = e.target.value;
-                rawCities = await loadCities(selectedPath);
+                const selectedFilename = e.target.value;
+                rawCities = await loadCities(selectedFilename ? `datasets/${selectedFilename}` : '');
                 updateURLParams();
                 updateMap();
             });
