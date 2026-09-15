@@ -147,6 +147,31 @@
             background: rgba(40, 40, 40, 0.9);
         }
 
+        /* Small Inline Loading Spinners */
+        .inline-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-top-color: #007acc;
+            border-radius: 50%;
+            animation: spin 0.8s infinite linear;
+            display: none;
+        }
+
+        .inline-spinner.visible {
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
         /* Modal Dialog */
         #info-modal {
             display: flex;
@@ -207,6 +232,7 @@
             <input type="text" id="search-input" value="ovice" placeholder="Napište podřetězec...">
             <button id="regex-btn" title="Použít regulární výraz (Alt+R)">.*</button>
         </div>
+        <div id="search-spinner" class="inline-spinner" title="Počítám výskyty..."></div>
         <span id="match-count" style="font-size: 13px; color: #aaa;"></span>
     </div>
 
@@ -216,6 +242,7 @@
         <select id="dataset-select">
             <option value="">-- Vyberte dataset --</option>
         </select>
+        <div id="dataset-spinner" class="inline-spinner" title="Načítám dataset..."></div>
     </div>
 
     <!-- Info Button (Top Right) -->
@@ -267,7 +294,32 @@
             const regexBtn = document.getElementById('regex-btn');
             const countDisplay = document.getElementById('match-count');
 
+            const searchSpinner = document.getElementById('search-spinner');
+            const datasetSpinner = document.getElementById('dataset-spinner');
+
             let isRegexEnabled = false;
+            let searchTimer = null;
+            let datasetTimer = null;
+
+            function startSearchLoadingTimer() {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => searchSpinner.classList.add('visible'), 150);
+            }
+
+            function stopSearchLoadingTimer() {
+                clearTimeout(searchTimer);
+                searchSpinner.classList.remove('visible');
+            }
+
+            function startDatasetLoadingTimer() {
+                clearTimeout(datasetTimer);
+                datasetTimer = setTimeout(() => datasetSpinner.classList.add('visible'), 150);
+            }
+
+            function stopDatasetLoadingTimer() {
+                clearTimeout(datasetTimer);
+                datasetSpinner.classList.remove('visible');
+            }
 
             // Set initial focus
             searchInput.focus();
@@ -356,14 +408,6 @@
                 datasetSelect.value = datasets[0].path.replace('datasets/', '');
             }
 
-            // Load initial dataset cities
-            if (datasetSelect.value) {
-                rawCities = await loadCities(`datasets/${datasetSelect.value}`);
-            }
-
-            // Sync URL parameters on initial load
-            updateURLParams();
-
             function getMatchCount(text, pattern, isRegex) {
                 if (!pattern) return 0;
 
@@ -451,14 +495,41 @@
                     bearing: 0
                 },
                 controller: true,
-                layers: [createLayer(searchInput.value, isRegexEnabled)],
+                layers: [],
                 getTooltip: ({ object }) => object ? `${object.name}\nVýskyty: ${object.population}` : null
             });
 
-            function updateMap() {
+            async function updateMap() {
+                startSearchLoadingTimer();
+                // Defer calculation slightly to allow loading timer & UI to respond
+                await new Promise(resolve => setTimeout(resolve, 0));
+
                 deckgl.setProps({
                     layers: [createLayer(searchInput.value, isRegexEnabled)]
                 });
+
+                stopSearchLoadingTimer();
+            }
+
+            async function loadSelectedDataset(filename) {
+                startDatasetLoadingTimer();
+                // Clear cities & layer so no cities are shown while dataset is loading
+                rawCities = [];
+                deckgl.setProps({ layers: [] });
+                if (countDisplay) countDisplay.textContent = '';
+
+                if (filename) {
+                    rawCities = await loadCities(`datasets/${filename}`);
+                }
+
+                stopDatasetLoadingTimer();
+                updateURLParams();
+                await updateMap();
+            }
+
+            // Load initial dataset cities
+            if (datasetSelect.value) {
+                await loadSelectedDataset(datasetSelect.value);
             }
 
             // Regex toggle handler
@@ -480,10 +551,7 @@
             });
 
             datasetSelect.addEventListener('change', async (e) => {
-                const selectedFilename = e.target.value;
-                rawCities = await loadCities(selectedFilename ? `datasets/${selectedFilename}` : '');
-                updateURLParams();
-                updateMap();
+                await loadSelectedDataset(e.target.value);
             });
 
             let debounceTimer;
