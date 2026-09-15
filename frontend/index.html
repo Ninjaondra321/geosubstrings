@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <title>3D Mapa populace Evropy</title>
+    <title>GeoSubstrings - Visualise Substrings of Geolocations</title>
 
     <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
     <script src="https://unpkg.com/maplibre-gl@3.x/dist/maplibre-gl.js"></script>
@@ -227,12 +227,12 @@
 <body>
     <!-- Search Bar (Top Left) -->
     <div id="search-container">
-        <label for="search-input">Hledaný podřetězec:</label>
+        <label for="search-input">Search substring:</label>
         <div class="input-wrapper">
-            <input type="text" id="search-input" value="ovice" placeholder="Napište podřetězec...">
-            <button id="regex-btn" title="Použít regulární výraz (Alt+R)">.*</button>
+            <input type="text" id="search-input" value="ovice" placeholder="Type a substring...">
+            <button id="regex-btn" title="Use Regular Expression (Alt+R)">.*</button>
         </div>
-        <div id="search-spinner" class="inline-spinner" title="Počítám výskyty..."></div>
+        <div id="search-spinner" class="inline-spinner" title="Counting occurrences..."></div>
         <span id="match-count" style="font-size: 13px; color: #aaa;"></span>
     </div>
 
@@ -240,13 +240,13 @@
     <div id="dataset-container">
         <label for="dataset-select">Dataset:</label>
         <select id="dataset-select">
-            <option value="">-- Vyberte dataset --</option>
+            <option value="">-- Select dataset --</option>
         </select>
-        <div id="dataset-spinner" class="inline-spinner" title="Načítám dataset..."></div>
+        <div id="dataset-spinner" class="inline-spinner" title="Loading dataset..."></div>
     </div>
 
     <!-- Info Button (Top Right) -->
-    <button id="info-btn" aria-label="Informace">?</button>
+    <button id="info-btn" aria-label="Information">?</button>
 
     <!-- Info Modal Dialog -->
     <div id="info-modal" style="display: none;">
@@ -254,9 +254,8 @@
             <h2>GeoSubstrings</h2>
             <button class="close-btn" id="close-modal">&times;</button>
 
-            <p>Tato 3D vizualizace zobrazuje četnost výskytu zadatelných podřetězců v názvech měst na mapě pomocí
-                Deck.GL sloupce.</p>
-            <p><strong>Autor:</strong> <a href="https://notime.cz/">NoTime</a></p>
+            <p>Visualise occurence of substrings in geolocations</p>
+            <p><strong>Author:</strong> <a href="https://notime.cz/">NoTime</a></p>
             <p><strong>Source code:</strong> <a href="https://github.com/Ninjaondra321/geosubstrings">GitHub</a></p>
         </div>
     </div>
@@ -394,7 +393,7 @@
 
                 // Store path in value (for URL syncing) & show name in label
                 option.value = cleanPath;
-                option.textContent = `${item.name || cleanPath} (${item.items} položek)`;
+                option.textContent = `${item.name || cleanPath} (${item.items} items)`;
                 datasetSelect.appendChild(option);
             });
 
@@ -451,7 +450,7 @@
 
                 if (countDisplay) {
                     if (isInvalidRegex) {
-                        countDisplay.textContent = 'Neplatný Regex';
+                        countDisplay.textContent = 'Invalid Regex';
                         countDisplay.style.color = '#ff6b6b';
                     } else {
                         countDisplay.style.color = '#aaa';
@@ -496,7 +495,7 @@
                 },
                 controller: true,
                 layers: [],
-                getTooltip: ({ object }) => object ? `${object.name}\nVýskyty: ${object.population}` : null
+                getTooltip: ({ object }) => object ? `${object.name}\nOccurrences: ${object.population}` : null
             });
 
             async function updateMap() {
