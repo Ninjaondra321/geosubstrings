@@ -334,13 +334,15 @@
                 history.replaceState(null, '', newRelativePathQuery);
             }
 
-            // Populate dataset dropdown options (storing clean filename without 'datasets/' prefix)
+            // Populate dataset dropdown options
             const datasets = await fetchDatasetList();
             datasets.forEach(item => {
                 const option = document.createElement('option');
-                const cleanName = item.path.replace('datasets/', '');
-                option.value = cleanName;
-                option.textContent = `${cleanName} (${item.items} položek)`;
+                const cleanPath = item.path.replace('datasets/', '');
+
+                // Store path in value (for URL syncing) & show name in label
+                option.value = cleanPath;
+                option.textContent = `${item.name || cleanPath} (${item.items} položek)`;
                 datasetSelect.appendChild(option);
             });
 
@@ -371,7 +373,6 @@
                         const matches = text.match(regex);
                         return matches ? matches.length : 0;
                     } catch (e) {
-                        // Invalid Regex expression being typed
                         return 0;
                     }
                 } else {
