@@ -251,6 +251,35 @@
                 searchInput.focus();
             });
 
+            // Parse URL search parameters on init
+            const urlParams = new URLSearchParams(window.location.search);
+            const initialQuery = urlParams.get('q');
+            const initialDataset = urlParams.get('dataset');
+
+            if (initialQuery !== null) {
+                searchInput.value = initialQuery;
+            }
+
+            // Function to synchronize current input & select state back to URL parameters
+            function updateURLParams() {
+                const params = new URLSearchParams(window.location.search);
+
+                if (searchInput.value) {
+                    params.set('q', searchInput.value);
+                } else {
+                    params.delete('q');
+                }
+
+                if (datasetSelect.value) {
+                    params.set('dataset', datasetSelect.value);
+                } else {
+                    params.delete('dataset');
+                }
+
+                const newRelativePathQuery = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+                history.replaceState(null, '', newRelativePathQuery);
+            }
+
             // Populate dataset dropdown options
             const datasets = await fetchDatasetList();
             datasets.forEach(item => {
@@ -259,6 +288,21 @@
                 option.textContent = `${item.path.replace('datasets/', '')} (${item.items} položek)`;
                 datasetSelect.appendChild(option);
             });
+
+            // Select dataset from URL param if available, or default to first dataset if none specified
+            if (initialDataset && datasets.some(d => d.path === initialDataset)) {
+                datasetSelect.value = initialDataset;
+            } else if (datasets.length > 0) {
+                datasetSelect.value = datasets[0].path;
+            }
+
+            // Load initial dataset cities
+            if (datasetSelect.value) {
+                rawCities = await loadCities(datasetSelect.value);
+            }
+
+            // Sync URL parameters on initial load
+            updateURLParams();
 
             function createLayer(substring) {
                 let matchedCitiesCount = 0;
@@ -328,6 +372,7 @@
             datasetSelect.addEventListener('change', async (e) => {
                 const selectedPath = e.target.value;
                 rawCities = await loadCities(selectedPath);
+                updateURLParams();
                 updateMap();
             });
 
@@ -336,6 +381,7 @@
             searchInput.addEventListener('input', () => {
                 clearTimeout(debounceTimer);
                 debounceTimer = setTimeout(() => {
+                    updateURLParams();
                     updateMap();
                 }, 100);
             });
